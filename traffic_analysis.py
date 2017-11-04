@@ -79,7 +79,7 @@ def main():
     num_node = 10
     pkt_size = 100
     num_pkts_per_node = 10000 # total of 100,000 packets per requirements
-    max_utilization = 1000.0 #1000 kbps
+    max_utilization = 1000.0 #1000 kbps = 1mbps, we are at max if we are using the entire 1mbps
     pool = ThreadPool(processes=3)
 
     for ol in offered_loads:

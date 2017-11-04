@@ -27,29 +27,32 @@ def get_send_node(args, cur_node):
     return send
 
 def get_packet_id(args, next_packet, node):
+    '''
+      Packet IDs are determined by using the next_packet dictionary. This dictionary original containes the node number + 1.
+      Each node determines it's next packet id by adding the number of nodes to it's current packet ID.
+      Ex. Node 1's first packet ID will be 2. It's next ID will be 2+num_nodes and it's next ID will be 2+2*num_nodes and so on.
+    '''
     max_id = args.num_pkts_per_node * args.num_node
-    count = 0
-    temp = random.randint(0,args.num_node-1 - count)
-    while True:
-        if(next_packet[node] + args.num_node > max_id):
-            return 0
-        else:
-            next_packet[node] = next_packet[node] + args.num_node
-            return 1
-
+    if(next_packet[node] + args.num_node > max_id):
+        return 0 #failed
+    else:
+        next_packet[node] = next_packet[node] + args.num_node
+        return 1 #success
+    
 def generate_file(args, gap):
-    # create dict for keep track of packets sent by each node
-    packets_sent = {}
-    next_packet = {}
+    # create dict for keeping track of packets sent by each node
+    # Each dict's key is the node number
+    packets_sent = {} 
+    next_packet = {} 
     node_time = {}
-    packets_left = args.num_pkts_per_node * args.num_node
+    packets_left = args.num_pkts_per_node * args.num_node #total number of packets
     current_time = 0
     output_array= []
 
     counter = []
 
     outfile = open("traffic.txt", "w")
-    outfile.write(str(packets_left) + "\n")
+    outfile.write(str(packets_left) + "\n") #per project guidlines, the first line of output should be the total number of packets in the file
     #initialize to amount they will each send
     for x in range(0, args.num_node):
         packets_sent[x] = args.num_pkts_per_node

@@ -1,21 +1,24 @@
 import argparse
 import random
-import IPython
 #max wait time in range of randomly choosen waits
 random_max = 1000
 
 class Packet:
-    def __init__(self, id, curr_node, send_node, size, time):
+    def __init__(self, id, curr_node, send_node, size, time, slotted = False):
         self.id = id
         self.curr_node = curr_node
         self.send_node =send_node
         self.size = size
-        self.time = time
-        self.finished_time = self.time + self.size -1  #the time it takes to send 1 bit is 1 microsecond so it takes size microseconds to send the packet
+        if not slotted:
+            self.slot_size = 0
+            self.time = time
+        else:
+            self.slot_size = self.size
+            self.time = time + (self.slot_size - (time % self.slot_size))
+        self.finished_time = self.time + self.size - 1  # the time it takes to send 1 bit is 1 microsecond so it takes size microseconds to send the packet
         self.status = "new"
     def dump(self):
         return "Packet {}: {} {} {} {}".format(self.id, self.curr_node, self.send_node, self.size, self.time)
-
 class Wire:
     def __init__(self):
         self.dict = {}
@@ -41,8 +44,13 @@ class Wire:
         self.count -= len(self.dict[index])
         self.dict[index] = []
 
-
-def aloha2(ordered_packets):
+def aloha(traffic, slotted = False):
+    ordered_packets = []
+    for line in traffic:
+        elements = line.split()
+        ordered_packets.append(Packet(int(elements[0]), int(elements[1]), int(elements[2]), int(elements[3]), int(elements[4]), slotted))
+    ordered_packets = sorted(ordered_packets, key=lambda p: p.time)  # just in case the generated traffic is not in order
+    num_packets = len(ordered_packets)
     successfully_transmitted = 0
     failed = 0
     throughput = 0
@@ -58,7 +66,7 @@ def aloha2(ordered_packets):
         else:
             ready_dict[p.time] = [p]
 
-    for i in range(0, max_time+1):
+    while (successfully_transmitted + failed) < num_packets:
         pkts_ready = ready_dict[current_time] if current_time in ready_dict else []
         pkts_finished = the_wire.dict[current_time] if current_time in the_wire.dict else []
 
@@ -113,97 +121,19 @@ def aloha2(ordered_packets):
     throughput *= 10**-3 #kbps
     print "throughput = {}kbps".format(int(throughput))
 
+def slotted_aloha(traffic):
+    aloha(traffic, True)
 
-def insert_line(traffic, time):
-    line_num = 0
-
-    for x in range(0,len(traffic)):
-        if traffic[x][1] == time:
-            line_num = x
-            break
-    store_line = traffic[line_num]
-
-    del traffic[line_num]
-    new_time = time + random.randint(1, random_max)
-
-    found = False
-    for x in range(0,len(traffic)):
-        if traffic[x][1] > new_time:
-
-            found = True
-            break
-    if not found:
-        traffic.insert(len(traffic), store_line )
-
-def aloha1(traffic, ordered_storage):
-    # this is the packet size / 1e6 bps = 1*packet_size microsecond A.K.A just the packet size
-    time_sent = int(traffic[1].split()[-2]) - 1 #time it takes to send the packet
-
-    curr_wire = []
-    count = 0
-    cur_time = 0 #each iteration equals 1 "micro second"
-    """ temp has list of (ordered storage, position in ordered storage) """
-    """ cur_wire has list of (time finished, "success or failed", position in ordered_storage) """
-    while count != len(ordered_storage):
-        if len(curr_wire) > 0:
-            deletion_list = []
-            for x in range(0, len(curr_wire)):
-                if curr_wire[x][0] == cur_time:
-                    if curr_wire[x][1] == "success":
-                        print "Time: ", cur_time, "Packet ", ordered_storage[curr_wire[x][2]][0].split()[0], ": ", \
-                        ordered_storage[curr_wire[x][2]][0], " finish sending: successfully transmitted"
-                        deletion_list.append(curr_wire[x])
-                        # del ordered_storage[curr_wire[x][2]]
-                        # del curr_wire[x]
-
-                    else:
-                        print "Time: ", cur_time, "Packet ", ordered_storage[curr_wire[x][2]][0].split()[0], ": ", \
-                        ordered_storage[curr_wire[x][2]][0], " finish sending: failed"
-                        deletion_list.append(curr_wire[x])
-                        # del ordered_storage[curr_wire[x][2]]
-                        # del curr_wire[x]
-            for x in deletion_list:
-                count = count + 1
-                curr_wire.remove(x)
-
-        temp = []
-        for x in range(0, len(ordered_storage)):
-            if ordered_storage[x][1] == cur_time:
-                temp.append((cur_time, x))
-        """
-        if temp > 0 and len(curr_wire) > 0:
-            for x in range(0, len(curr_wire)):
-                curr_wire[x] = (curr_wire[x][0], "failed", curr_wire[x][2])
-        """
-
-        for x in range(0, len(temp)):
-            if len(temp) > 1 and len(curr_wire) == 0:
-                if x == 0:
-                    curr_wire.append((temp[x][0] + time_sent - 1, "success", temp[x][1]))
-                    print "Time: ", cur_time, "Packet ", ordered_storage[temp[x][1]][0].split()[0], ": ", \
-                    ordered_storage[temp[x][1]][0], "start sending"
-                else:
-                    #this will never occur because curr_wire always has elements at this point
-                    curr_wire.append((temp[x][0] + time_sent, "collision", temp[x][1]))
-                    print "Time: ", cur_time, "Packet ", ordered_storage[temp[x][1]][0].split()[0], ": ", \
-                    ordered_storage[temp[x][1]][0], "start sending: collision"
-            elif len(temp) == 1 and len(curr_wire) == 0:
-                curr_wire.append((temp[x][0] + time_sent, "success", temp[x][1]))
-                print "Time: ", cur_time, "Packet ", ordered_storage[temp[x][1]][0].split()[0], ": ", \
-                ordered_storage[temp[x][1]][0], "start sending"
-            else:
-                curr_wire.append((temp[x][0] + time_sent, "collision", temp[x][1]))
-                print "Time: ", cur_time, "Packet ", ordered_storage[temp[x][1]][0].split()[0], ": ", \
-                ordered_storage[temp[x][1]][0], "start sending: collision"
-        cur_time = cur_time + 1
-        # print "the current length of ordered_storage: ", len(ordered_storage)
-        # print "the current length of wire: ", len(curr_wire)
+def csma(traffic):
+    ordered_packets = []
+    for line in traffic:
+        elements = line.split()
+        ordered_packets.append(Packet(int(elements[0]), int(elements[1]), int(elements[2]), int(elements[3]), int(elements[4]), slotted))
+    ordered_packets = sorted(ordered_packets, key=lambda p: p.time)  # just in case the generated traffic is not in order
 
 def main(gen_file, sim_type):
-    #read traffic
-    traffic = []
     try:
-        with open(args.gen_file) as f:
+        with open(gen_file) as f:
             traffic = f.readlines()
         traffic = [x.strip() for x in traffic]
         del traffic[0]
@@ -211,17 +141,12 @@ def main(gen_file, sim_type):
         print "Failed to read traffic file."
         print "Error {}.".format(e.message)
         return
-    ordered_storage = []
-    ordered_packets = []
-    for line in traffic:
-        ordered_storage.append((line, int(line.split()[-1]), "new"))
-        elements = line.split()
-        ordered_packets.append(Packet(int(elements[0]), int(elements[1]), int(elements[2]), int(elements[3]), int(elements[4])))
-    ordered_storage = sorted(ordered_storage, key=lambda b: b[1])  # just in case the generated traffic is not in order
-    ordered_packets = sorted(ordered_packets, key=lambda p: p.time)  # just in case the generated traffic is not in order
     if sim_type == 'a':
-        #aloha1(traffic, ordered_storage)
-        aloha2(ordered_packets)
+        aloha(traffic)
+    elif sim_type == 'sa':
+        slotted_aloha(traffic)
+    elif sim_type == 'c':
+        csma(traffic)
     else:
         print "Simulation type {} is not implemented".format(sim_type)
         print "Options are: 'a' - aloha, 'sa'- slotted aloha, 'c' - CSMA 1 persistent"

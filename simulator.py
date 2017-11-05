@@ -1,5 +1,4 @@
 import argparse
-import random
 #max wait time in range of randomly choosen waits
 random_max = 1000
 
@@ -169,10 +168,15 @@ def csma(traffic, ignore=False):
             ready_dict[p.time] = [p]
     pkt_size = int(elements[3])  # all packet have the same size
     wait_list = [] #this is for csma
-
     while (successfully_transmitted + failed) < num_packets:
         pkts_ready = ready_dict[current_time] if current_time in ready_dict else []
         pkts_finished = the_wire.dict[current_time] if current_time in the_wire.dict else []
+
+        if len(pkts_ready) == 0 and len(wait_list) > 0 and the_wire.state == "idle":
+            #special case the wait_list is not empty and the wire is idle those packets need to be sent
+            for p in wait_list:
+                pkts_ready.append(p)
+            wait_list = []
 
         if len(pkts_ready) > 0:
             # packets are ready to send
@@ -187,33 +191,30 @@ def csma(traffic, ignore=False):
                     first_packet.updateTimeSent(current_time)
                     chkPrint("Time: {}, {} {}".format(current_time, first_packet.dump(), msg_success),ignore)
                     the_wire.add(p)
-                    first_sent = True
                     for i, p in enumerate(wait_list):
-                        if first_sent and i == 0:
-                            first_sent = False
-                            continue  # skip the first packet if it was sent
-                        p.updateTimeSent(current_time)
-                        p.status = "collision"
-                        chkPrint("Time: {}, {} {}".format(current_time, p.dump(), msg_fail),ignore)
-                        the_wire.add(p)
+                        if i != 0:
+                            p.updateTimeSent(current_time)
+                            p.status = "collision"
+                            chkPrint("Time: {}, {} {}".format(current_time, p.dump(), msg_fail),ignore)
+                            the_wire.add(p)
                     wait_list = []
                 else:
                     p = pkts_ready[0]
                     p.updateTimeSent(current_time)
                     chkPrint("Time: {}, {} {}".format(current_time, p.dump(), msg_success),ignore)
                     the_wire.add(p)
-                    first_sent = True
                     for i, p in enumerate(pkts_ready):
-                        if first_sent and i == 0:
-                            first_sent = False
-                            continue  # skip the first packet if it was sent
-                        p.updateTimeSent(current_time)
-                        p.status = "collision"
-                        chkPrint("Time: {}, {} {}".format(current_time, p.dump(), msg_fail),ignore)
-                        the_wire.add(p)
+                        if i != 0:
+                            p.updateTimeSent(current_time)
+                            p.status = "collision"
+                            chkPrint("Time: {}, {} {}".format(current_time, p.dump(), msg_fail),ignore)
+                            the_wire.add(p)
             elif the_wire.state == "busy":
                 for p in pkts_ready:
                     wait_list.append(p)
+            else:
+                print "Error the wire's state is invalid."
+                exit(0)
 
         if len(pkts_finished) > 0:
             msg_success = "finish sending: successfully transmitted"

@@ -92,8 +92,6 @@ def main():
         throughput_to_offeredLoad["Aloha"].append((aloha.get()[2] / max_utilization, ol))
         throughput_to_offeredLoad["Slotted_Aloha"].append((s_aloha.get()[2] / max_utilization, ol))
         throughput_to_offeredLoad["CSMA"].append((csma.get()[2]/max_utilization, ol))
-        if ol == 1.5:
-            break # DEBUG just do it once for now
     generateGraph(throughput_to_offeredLoad)
 
 if __name__ == "__main__":
